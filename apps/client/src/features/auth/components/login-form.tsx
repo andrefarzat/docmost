@@ -42,6 +42,12 @@ export function LoginForm() {
     await signIn(data);
   }
 
+  async function signViaAad() {
+    const url = "/api/auth/aad";
+    const win = window.open(url);
+    return false;
+  }
+
   return (
     <Container size={420} my={40} className={classes.container}>
       <Box p="xl" mt={200}>
@@ -80,6 +86,12 @@ export function LoginForm() {
         >
           {t("Forgot your password?")}
         </Anchor>
+
+        <form onSubmit={signViaAad}>
+          <Button type="submit" fullWidth mt="xl">
+            {t("Sign in using Azure AD")}
+          </Button>
+        </form>
       </Box>
     </Container>
   );

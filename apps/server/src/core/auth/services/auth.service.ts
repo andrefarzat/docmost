@@ -29,6 +29,9 @@ import { InjectKysely } from 'nestjs-kysely';
 import { executeTx } from '@docmost/db/utils';
 import { VerifyUserTokenDto } from '../dto/verify-user-token.dto';
 import { EnvironmentService } from 'src/integrations/environment/environment.service';
+import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
+import { URLSearchParams } from 'node:url';
+import { randomUUID } from 'node:crypto';
 
 @Injectable()
 export class AuthService {
@@ -36,11 +39,50 @@ export class AuthService {
     private signupService: SignupService,
     private tokenService: TokenService,
     private userRepo: UserRepo,
+    private workspaceRepo: WorkspaceRepo,
     private userTokenRepo: UserTokenRepo,
     private mailService: MailService,
     private environmentService: EnvironmentService,
     @InjectKysely() private readonly db: KyselyDB,
   ) {}
+
+  getAadUrl(): string {
+    const authority = this.environmentService.getAadAuthority();
+    const tenantId = this.environmentService.getAadTenantId();
+
+    const params = new URLSearchParams({
+      client_id: this.environmentService.getAadClientId(),
+      response_type: 'id_token',
+      response_mode: 'form_post',
+      scope: 'openid',
+      prompt: 'login',
+      redirect_url: this.environmentService.getAppUrl() + '/api/auth/callback',
+      nonce: randomUUID()
+    });
+
+    return `${authority}/${tenantId}/oauth2/authorize?${params.toString()}`;
+  }
+
+  async loginViaAad(jwtToken: string) {
+    const jwt = this.tokenService.decodeJwt(jwtToken);
+    const workspace = await this.workspaceRepo.findFirst();
+
+    const user = await this.userRepo.findByEmail(jwt.unique_name, workspace.id, false);
+
+    if (!user) {
+      const neoUser: CreateUserDto = {
+        name: jwt.name,
+        email: jwt.unique_name,
+        password: nanoIdGen(16),
+      };
+
+      return await this.register(neoUser, workspace.id);
+    }
+
+    user.lastLoginAt = new Date();
+    await this.userRepo.updateLastLogin(user.id, workspace.id);
+    return this.tokenService.generateAccessToken(user);
+  }
 
   async login(loginDto: LoginDto, workspaceId: string) {
     const user = await this.userRepo.findByEmail(

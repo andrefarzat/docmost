@@ -11,6 +11,10 @@ export class TokenService {
     private environmentService: EnvironmentService,
   ) {}
 
+  decodeJwt(token: string) {
+    return this.jwtService.decode(token);
+  }
+
   async generateAccessToken(user: User): Promise<string> {
     const payload: JwtPayload = {
       sub: user.id,

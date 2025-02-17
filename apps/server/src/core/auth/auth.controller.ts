@@ -1,12 +1,14 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   NotFoundException,
   Post,
   Req,
   Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { LoginDto } from './dto/login.dto';
@@ -24,13 +26,40 @@ import { PasswordResetDto } from './dto/password-reset.dto';
 import { VerifyUserTokenDto } from './dto/verify-user-token.dto';
 import { FastifyReply } from 'fastify';
 import { addDays } from 'date-fns';
+import { UserRepo } from '@docmost/db/repos/user/user.repo';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private authService: AuthService,
+    private userRepo: UserRepo,
     private environmentService: EnvironmentService,
   ) {}
+
+  @HttpCode(HttpStatus.PERMANENT_REDIRECT)
+  @Get('aad')
+  async aadPost(@Req() req, @Res() res) {
+    const aadUrl: string = this.authService.getAadUrl();
+    res.redirect(aadUrl);
+    return {url: aadUrl, statusCode: 302 };
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('callback')
+  async authCallback(
+    @Req() req,
+    @Res({ passthrough: true }) res: FastifyReply,
+    @Body() body: any,
+  ) {
+    if (body.error) {
+      throw new UnauthorizedException(body.error_description);
+    }
+
+    const authToken = await this.authService.loginViaAad(body.id_token);
+    this.setAuthCookie(res, authToken);
+    res.redirect('/');
+    return {url: '/', statusCode: 302 };
+  }
 
   @HttpCode(HttpStatus.OK)
   @Post('login')

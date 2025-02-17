@@ -145,4 +145,16 @@ export class EnvironmentService {
   isSelfHosted(): boolean {
     return !this.isCloud();
   }
+
+  getAadAuthority(): string {
+    return this.configService.get<string>('AAD_AUTHORITY', 'https://login.microsoftonline.com');
+  }
+
+  getAadTenantId(): string {
+    return this.configService.get<string>('AAD_TENANT_ID');
+  }
+
+  getAadClientId(): string {
+    return this.configService.get<string>('AAD_CLIENT_ID');
+  }
 }
